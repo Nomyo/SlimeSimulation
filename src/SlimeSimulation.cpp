@@ -68,7 +68,7 @@ void SlimeSimulation::Prepare()
     m_graphics.queueFamilyIndex = m_vulkanDevice->queueFamilyIndices.graphics;
     m_compute.queueFamilyIndex = m_vulkanDevice->queueFamilyIndices.compute;
 
-    m_textures.slime.CreateTargetTexture(m_width, m_height, VK_FORMAT_R8G8B8A8_UNORM, m_vulkanDevice, m_graphicsQueue, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VK_IMAGE_LAYOUT_GENERAL);
+    m_textures.slime.CreateTargetTexture(m_width / 2 , m_height/ 2, VK_FORMAT_R8G8B8A8_UNORM, m_vulkanDevice, m_graphicsQueue, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VK_IMAGE_LAYOUT_GENERAL);
 
     SetupDescriptorPool();
 
@@ -222,13 +222,16 @@ void SlimeSimulation::SetupGraphicsDescriptorSet()
 void SlimeSimulation::PrepareStorageBuffers()
 {
     std::default_random_engine rndEngine((unsigned)time(nullptr));
-    std::uniform_real_distribution<float> rndDistWidth(0, m_width);
-    std::uniform_real_distribution<float> rndDistHeight(0, m_width);
+    std::uniform_real_distribution<float> rndDistWidth(0, (float)m_textures.slime.m_width);
+    std::uniform_real_distribution<float> rndDistHeight(0, (float)m_textures.slime.m_height);
+
+    std::uniform_real_distribution<float> rndDistNorm(-1.f, 1.f);
 
     // Initial agents positions
     std::vector<SlimeAgent> agentBuffer(AGENT_COUNT);
     for (auto& agent : agentBuffer) {
         agent.position = glm::vec2(rndDistWidth(rndEngine), rndDistHeight(rndEngine));
+        agent.direction = normalize(glm::vec2(rndDistNorm(rndEngine), rndDistNorm(rndEngine)));
     }
     VkDeviceSize storageBufferSize = agentBuffer.size() * sizeof(SlimeAgent);
 
@@ -289,21 +292,16 @@ void SlimeSimulation::PrepareUniformBuffers()
     m_compute.uniformBuffer.descriptor.offset = 0;
     m_compute.uniformBuffer.descriptor.range = sizeof(m_compute.ubo);
 
+    m_compute.ubo.spaceWidth = m_textures.slime.m_width;
+    m_compute.ubo.spaceHeight = m_textures.slime.m_height;
+    m_compute.ubo.agentCount = AGENT_COUNT;
+
     UpdateUniformBuffers();
 }
 
 void SlimeSimulation::UpdateUniformBuffers()
 {
-    static float timer = 0.0f;
-    static float timerSpeed = .08f;
-    timer += timerSpeed * m_frameTimer;
-    if (timer > 1.0)
-    {
-        timer -= 1.0f;
-    }
-
-    m_compute.ubo.elapsedTime = m_frameTimer / 80;
-
+    m_compute.ubo.elapsedTime = m_frameTimer;
     memcpy(m_compute.uniformBuffer.mapped, &m_compute.ubo, sizeof(m_compute.ubo));
 }
 

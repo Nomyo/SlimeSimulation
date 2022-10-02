@@ -5,10 +5,11 @@
 #include <glm/glm.hpp>
 
 #define ENABLE_VALIDATION true
-#define AGENT_COUNT 1024
+#define AGENT_COUNT 10
 
 struct SlimeAgent {
     glm::vec2 position;
+    glm::vec2 direction;
 };
 
 struct BufferWrapper {
@@ -59,6 +60,9 @@ public:
 
         struct computeUbo {
             float elapsedTime;
+            uint32_t spaceWidth;
+            uint32_t spaceHeight;
+            uint32_t agentCount;
         } ubo;
     } m_compute;
 

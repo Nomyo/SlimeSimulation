@@ -416,8 +416,9 @@ void VulkanCore::RenderLoop()
 
     while (!glfwWindowShouldClose(m_pWindow)) {
         glfwPollEvents();
-
-        NextFrame();
+        if (m_prepared) {
+            NextFrame();
+        }
     }
 
     // Flush device to make sure all resources can be freed
@@ -448,6 +449,7 @@ void VulkanCore::NextFrame()
 
     auto tEnd = std::chrono::high_resolution_clock::now();
     auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
+
     m_frameTimer = (float)tDiff / 1000.0f;
 
     m_camera.Update(m_frameTimer);

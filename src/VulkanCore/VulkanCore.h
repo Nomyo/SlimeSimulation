@@ -64,7 +64,7 @@ protected:
     std::chrono::time_point<std::chrono::high_resolution_clock> m_tPrevEnd;
 
     // Last frame time measured using a high performance timer (if available)
-    float  m_frameTimer = 1.0f;
+    float  m_frameTimer = .001f;
 
     VkInstance m_instance;
     std::vector<std::string> m_supportedInstanceExtensions;

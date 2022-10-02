@@ -3,6 +3,7 @@
 struct SlimeAgent
 {
     vec2 pos;
+    vec2 direction;
 };
 
 layout(std140, binding = 0) buffer agentBlock
@@ -13,18 +14,48 @@ layout(std140, binding = 0) buffer agentBlock
 layout(binding = 1) uniform UBO
 {
     float elapsedTime;
+    uint spaceWidth;
+    uint spaceHeight;
+    uint agentCount;
 } ubo;
 
 layout (binding = 2, rgba8) uniform image2D image;
 
-layout(local_size_x = 1024, local_size_y = 1, local_size_z = 1) in;
+uint hash(uint value) {
+    value ^= 2747636419u;
+    value *= 2654435769u;
+    value ^= value >> 16;
+    value *= 2654435769u;
+    value ^= value >> 16;
+    value *= 2654435769u;
+    return value;
+}
+
+layout(local_size_x = 10, local_size_y = 1, local_size_z = 1) in;
 void main()
 {
     // 1D workload
     uint index = gl_GlobalInvocationID.x;
-    if (index >= 1024) {
+    if (index >= ubo.agentCount) {
         return;
     }
 
-    imageStore(image, ivec2(agents[gl_GlobalInvocationID.x].pos), vec4(1.0));
+    float speedFactor = 100.0;
+
+    vec2 cPos = agents[index].pos;
+    vec2 cDir = agents[index].direction;
+
+    vec2 nPos = agents[index].pos + cDir * ubo.elapsedTime * speedFactor;
+
+    if (nPos.x < 0 || nPos.x >= ubo.spaceWidth || nPos.y < 0 || nPos.y >= ubo.spaceHeight) {
+        nPos.x = min(ubo.spaceWidth - 0.01, max(0 + 0.01, nPos.x));
+        nPos.y = min(ubo.spaceHeight - 0.01, max(0 + 0.01, nPos.y));
+
+        // give a new direction
+        uint random = hash(ubo.spaceHeight * int(cPos.y) - int(cPos.x) + hash(index));
+        agents[index].direction = normalize(vec2(cos(random), sin(random)));
+    }
+    agents[index].pos = nPos;
+    //ivec2 texturePos = ivec2(floor((agents[index].pos.x + 1.) * ubo.spaceWidth / 2.), floor((agents[index].pos.y + 1.) *  ubo.spaceHeight / 2.));
+    imageStore(image, ivec2(agents[index].pos), vec4(1.0));
 }
