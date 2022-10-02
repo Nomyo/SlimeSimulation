@@ -1,0 +1,30 @@
+#version 450
+
+struct SlimeAgent
+{
+    vec2 pos;
+};
+
+layout(std140, binding = 0) buffer agentBlock
+{
+    SlimeAgent agents[ ];
+};
+
+layout(binding = 1) uniform UBO
+{
+    float elapsedTime;
+} ubo;
+
+layout (binding = 2, rgba8) uniform image2D image;
+
+layout(local_size_x = 1024, local_size_y = 1, local_size_z = 1) in;
+void main()
+{
+    // 1D workload
+    uint index = gl_GlobalInvocationID.x;
+    if (index >= 1024) {
+        return;
+    }
+
+    imageStore(image, ivec2(agents[gl_GlobalInvocationID.x].pos), vec4(1.0));
+}
