@@ -60,6 +60,7 @@ public:
 
         struct computeUbo {
             float elapsedTime;
+            float time;
             uint32_t spaceWidth;
             uint32_t spaceHeight;
             uint32_t agentCount;
@@ -68,7 +69,8 @@ public:
 
     struct {
         // Texture sampled to full screen
-        Texture2D slime;
+        Texture2D renderMap;
+        Texture2D diffuseMap;
     } m_textures;
 
     SlimeSimulation();

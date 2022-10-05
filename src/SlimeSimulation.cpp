@@ -25,7 +25,8 @@ SlimeSimulation::~SlimeSimulation()
     }
 
     // Destroy textures
-    m_textures.slime.Destroy();
+    m_textures.renderMap.Destroy();
+    m_textures.diffuseMap.Destroy();
 
     // Destroy compute
     vkFreeMemory(m_logicalDevice, m_compute.storageBuffer.memory, nullptr);
@@ -60,6 +61,15 @@ void SlimeSimulation::Render()
     UpdateUniformBuffers();
 }
 
+uint32_t hash(uint32_t value) {
+    value ^= 2747636419u;
+    value *= 2654435769u;
+    value ^= value >> 16;
+    value *= 2654435769u;
+    value ^= value >> 16;
+    value *= 2654435769u;
+    return value;
+}
 
 void SlimeSimulation::Prepare()
 {
@@ -68,7 +78,8 @@ void SlimeSimulation::Prepare()
     m_graphics.queueFamilyIndex = m_vulkanDevice->queueFamilyIndices.graphics;
     m_compute.queueFamilyIndex = m_vulkanDevice->queueFamilyIndices.compute;
 
-    m_textures.slime.CreateTargetTexture(m_width / 2 , m_height/ 2, VK_FORMAT_R8G8B8A8_UNORM, m_vulkanDevice, m_graphicsQueue, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VK_IMAGE_LAYOUT_GENERAL);
+    m_textures.renderMap.CreateTargetTexture(m_width, m_height, VK_FORMAT_R8G8B8A8_UNORM, m_vulkanDevice, m_graphicsQueue, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VK_IMAGE_LAYOUT_GENERAL);
+    m_textures.diffuseMap.CreateTargetTexture(m_width, m_height, VK_FORMAT_R8G8B8A8_UNORM, m_vulkanDevice, m_graphicsQueue, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VK_IMAGE_LAYOUT_GENERAL);
 
     SetupDescriptorPool();
 
@@ -208,7 +219,7 @@ void SlimeSimulation::SetupGraphicsDescriptorSet()
     writeSamplerDescriptorSet.dstSet = m_graphics.slime.descriptorSet;
     writeSamplerDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     writeSamplerDescriptorSet.dstBinding = 0;
-    writeSamplerDescriptorSet.pImageInfo = &m_textures.slime.m_descriptor;
+    writeSamplerDescriptorSet.pImageInfo = &m_textures.renderMap.m_descriptor;
     writeSamplerDescriptorSet.descriptorCount = 1;
 
     std::vector<VkWriteDescriptorSet> writeDescriptorSets
@@ -222,8 +233,8 @@ void SlimeSimulation::SetupGraphicsDescriptorSet()
 void SlimeSimulation::PrepareStorageBuffers()
 {
     std::default_random_engine rndEngine((unsigned)time(nullptr));
-    std::uniform_real_distribution<float> rndDistWidth(0, (float)m_textures.slime.m_width);
-    std::uniform_real_distribution<float> rndDistHeight(0, (float)m_textures.slime.m_height);
+    std::uniform_real_distribution<float> rndDistWidth(0, (float)m_textures.renderMap.m_width);
+    std::uniform_real_distribution<float> rndDistHeight(0, (float)m_textures.renderMap.m_height);
 
     std::uniform_real_distribution<float> rndDistNorm(-1.f, 1.f);
 
@@ -233,6 +244,7 @@ void SlimeSimulation::PrepareStorageBuffers()
         agent.position = glm::vec2(rndDistWidth(rndEngine), rndDistHeight(rndEngine));
         agent.direction = normalize(glm::vec2(rndDistNorm(rndEngine), rndDistNorm(rndEngine)));
     }
+
     VkDeviceSize storageBufferSize = agentBuffer.size() * sizeof(SlimeAgent);
 
     // Staging
@@ -292,8 +304,8 @@ void SlimeSimulation::PrepareUniformBuffers()
     m_compute.uniformBuffer.descriptor.offset = 0;
     m_compute.uniformBuffer.descriptor.range = sizeof(m_compute.ubo);
 
-    m_compute.ubo.spaceWidth = m_textures.slime.m_width;
-    m_compute.ubo.spaceHeight = m_textures.slime.m_height;
+    m_compute.ubo.spaceWidth = m_textures.renderMap.m_width;
+    m_compute.ubo.spaceHeight = m_textures.renderMap.m_height;
     m_compute.ubo.agentCount = AGENT_COUNT;
 
     UpdateUniformBuffers();
@@ -301,7 +313,10 @@ void SlimeSimulation::PrepareUniformBuffers()
 
 void SlimeSimulation::UpdateUniformBuffers()
 {
+    static float time = 0;
+    time += m_frameTimer;
     m_compute.ubo.elapsedTime = m_frameTimer;
+    m_compute.ubo.time = time;
     memcpy(m_compute.uniformBuffer.mapped, &m_compute.ubo, sizeof(m_compute.ubo));
 }
 
@@ -501,7 +516,7 @@ void SlimeSimulation::PrepareCompute()
     imageDescriptorSet.dstSet = m_compute.slime.descriptorSet;
     imageDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     imageDescriptorSet.dstBinding = 2;
-    imageDescriptorSet.pImageInfo = &m_textures.slime.m_descriptor;
+    imageDescriptorSet.pImageInfo = &m_textures.renderMap.m_descriptor;
     imageDescriptorSet.descriptorCount = 1;
 
     std::vector<VkWriteDescriptorSet> writeDescriptorSets
@@ -567,7 +582,7 @@ void SlimeSimulation::BuildCommandBuffers()
         // We won't be changing the layout of the image
         imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
         imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-        imageMemoryBarrier.image = m_textures.slime.m_image;
+        imageMemoryBarrier.image = m_textures.renderMap.m_image;
         imageMemoryBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
         imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
         imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
@@ -624,7 +639,29 @@ void SlimeSimulation::BuildComputeCommandBuffer()
     vkCmdBindPipeline(m_compute.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_compute.slime.pipeline);
     vkCmdBindDescriptorSets(m_compute.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_compute.slime.pipelineLayout, 0, 1, &m_compute.slime.descriptorSet, 0, 0);
     vkCmdDispatch(m_compute.commandBuffer, AGENT_COUNT, 1, 1);
+    vkCmdDispatch(m_compute.commandBuffer, AGENT_COUNT, 1, 1);
 
+
+    // Copy region for transfer from framebuffer to cube face
+    VkImageCopy copyRegion = {};
+
+    copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    copyRegion.srcSubresource.baseArrayLayer = 0;
+    copyRegion.srcSubresource.mipLevel = 0;
+    copyRegion.srcSubresource.layerCount = 1;
+    copyRegion.srcOffset = { 0, 0, 0 };
+
+    copyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    copyRegion.dstSubresource.baseArrayLayer = 0;
+    copyRegion.dstSubresource.mipLevel = 0;
+    copyRegion.dstSubresource.layerCount = 1;
+    copyRegion.dstOffset = { 0, 0, 0 };
+
+    copyRegion.extent.width = m_textures.diffuseMap.m_width;
+    copyRegion.extent.height = m_textures.diffuseMap.m_height;
+    copyRegion.extent.depth = 1;
+
+    vkCmdCopyImage(m_compute.commandBuffer, m_textures.diffuseMap.m_image, VK_IMAGE_LAYOUT_GENERAL, m_textures.renderMap.m_image, VK_IMAGE_LAYOUT_GENERAL, );
     vkEndCommandBuffer(m_compute.commandBuffer);
 }
 

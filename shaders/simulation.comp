@@ -14,6 +14,7 @@ layout(std140, binding = 0) buffer agentBlock
 layout(binding = 1) uniform UBO
 {
     float elapsedTime;
+    float time;
     uint spaceWidth;
     uint spaceHeight;
     uint agentCount;
@@ -30,6 +31,11 @@ uint hash(uint value) {
     value *= 2654435769u;
     return value;
 }
+float scaleToRange01(uint state)
+{
+    return state / 4294967295.0;
+}
+#define PI 3.1415926538
 
 layout(local_size_x = 10, local_size_y = 1, local_size_z = 1) in;
 void main()
@@ -40,7 +46,7 @@ void main()
         return;
     }
 
-    float speedFactor = 100.0;
+    float speedFactor = 200.0;
 
     vec2 cPos = agents[index].pos;
     vec2 cDir = agents[index].direction;
@@ -48,14 +54,14 @@ void main()
     vec2 nPos = agents[index].pos + cDir * ubo.elapsedTime * speedFactor;
 
     if (nPos.x < 0 || nPos.x >= ubo.spaceWidth || nPos.y < 0 || nPos.y >= ubo.spaceHeight) {
-        nPos.x = min(ubo.spaceWidth - 0.01, max(0 + 0.01, nPos.x));
-        nPos.y = min(ubo.spaceHeight - 0.01, max(0 + 0.01, nPos.y));
+        nPos.x = min(ubo.spaceWidth - 1, max(0, nPos.x));
+        nPos.y = min(ubo.spaceHeight - 1, max(0, nPos.y));
 
         // give a new direction
-        uint random = hash(ubo.spaceHeight * int(cPos.y) - int(cPos.x) + hash(index));
-        agents[index].direction = normalize(vec2(cos(random), sin(random)));
+        uint random = hash(ubo.spaceWidth * uint(cPos.y) + uint(nPos.x) + hash(index + uint(ubo.time) * 1994));
+        agents[index].direction = vec2(cos(scaleToRange01(random) * 2 * PI), sin(scaleToRange01(random) * 2 * PI));
     }
     agents[index].pos = nPos;
-    //ivec2 texturePos = ivec2(floor((agents[index].pos.x + 1.) * ubo.spaceWidth / 2.), floor((agents[index].pos.y + 1.) *  ubo.spaceHeight / 2.));
+
     imageStore(image, ivec2(agents[index].pos), vec4(1.0));
 }
