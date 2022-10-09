@@ -37,6 +37,9 @@ SlimeSimulation::~SlimeSimulation()
     vkDestroyDescriptorSetLayout(m_logicalDevice, m_compute.slime.descriptorSetLayout, nullptr);
     vkDestroyPipelineLayout(m_logicalDevice, m_compute.slime.pipelineLayout, nullptr);
     vkDestroyPipeline(m_logicalDevice, m_compute.slime.pipeline, nullptr);
+    vkDestroyDescriptorSetLayout(m_logicalDevice, m_compute.diffuse.descriptorSetLayout, nullptr);
+    vkDestroyPipelineLayout(m_logicalDevice, m_compute.diffuse.pipelineLayout, nullptr);
+    vkDestroyPipeline(m_logicalDevice, m_compute.diffuse.pipeline, nullptr);
     vkDestroySemaphore(m_logicalDevice, m_compute.semaphore, nullptr);
 
     vkFreeCommandBuffers(m_logicalDevice, m_compute.commandPool, 1, &m_compute.commandBuffer);
