@@ -5,7 +5,7 @@
 #include <glm/glm.hpp>
 
 #define ENABLE_VALIDATION true
-#define AGENT_COUNT 10
+#define AGENT_COUNT 1024
 
 struct SlimeAgent {
     glm::vec2 position;

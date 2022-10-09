@@ -15,13 +15,29 @@ layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 void main()
 {
     // 1D workload
-    vec2 texCoord = gl_GlobalInvocationID.xy;
+    uvec2 texCoord = gl_GlobalInvocationID.xy;
     if (texCoord.x >= ubo.spaceWidth || texCoord.x < 0 || texCoord.y >= ubo.spaceHeight || texCoord.y < 0) {
         return;
     }
 
-    float decaySpeed = 4.;
+    float diffuseRate = 200.0;
+    float decaySpeed = 1;
+
     vec3 col = imageLoad(inputImage, ivec2(texCoord)).rgb;
-    col = max(vec3(0.), col - col * decaySpeed * ubo.elapsedTime);
-    imageStore(resultImage, ivec2(texCoord), vec4(col, 1.0));
+
+    vec3 sum = vec3(0);
+    // 3x3 blur
+    for (int offsetX = -1; offsetX <= 1; offsetX ++) {
+        for (int offsetY = -1; offsetY <= 1; offsetY ++) {
+            uint sampleX = min(ubo.spaceWidth-1, max(0, texCoord.x + offsetX));
+            uint sampleY = min(ubo.spaceHeight-1, max(0, texCoord.y + offsetY));
+            sum += imageLoad(inputImage, ivec2(sampleX, sampleY)).rgb;
+        }
+    }
+    vec3 diffuseCol = sum / 9;
+    float diffuseWeight = clamp(diffuseRate * ubo.elapsedTime, 0.0, 1.0);
+    diffuseCol = col * (1 - diffuseWeight) + diffuseCol * diffuseWeight;
+
+    diffuseCol = max(vec3(0.), diffuseCol - decaySpeed * ubo.elapsedTime);
+    imageStore(resultImage, ivec2(texCoord), vec4(diffuseCol, 1.0));
 }

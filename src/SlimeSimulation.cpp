@@ -763,7 +763,7 @@ void SlimeSimulation::BuildComputeCommandBuffer()
     // Dispatch the compute job
     vkCmdBindPipeline(m_compute.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_compute.slime.pipeline);
     vkCmdBindDescriptorSets(m_compute.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_compute.slime.pipelineLayout, 0, 1, &m_compute.slime.descriptorSet, 0, 0);
-    vkCmdDispatch(m_compute.commandBuffer, AGENT_COUNT, 1, 1);
+    vkCmdDispatch(m_compute.commandBuffer, AGENT_COUNT / 1024, 1, 1);
 
     VkImageMemoryBarrier imageMemoryBarrier = {};
     imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
