@@ -78,8 +78,8 @@ void SlimeSimulation::Prepare()
     m_graphics.queueFamilyIndex = m_vulkanDevice->queueFamilyIndices.graphics;
     m_compute.queueFamilyIndex = m_vulkanDevice->queueFamilyIndices.compute;
 
-    m_textures.renderMap.CreateTargetTexture(m_width, m_height, VK_FORMAT_R8G8B8A8_UNORM, m_vulkanDevice, m_graphicsQueue, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VK_IMAGE_LAYOUT_GENERAL);
-    m_textures.diffuseMap.CreateTargetTexture(m_width, m_height, VK_FORMAT_R8G8B8A8_UNORM, m_vulkanDevice, m_graphicsQueue, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VK_IMAGE_LAYOUT_GENERAL);
+    m_textures.renderMap.CreateTargetTexture(m_width, m_height, VK_FORMAT_R32G32B32A32_SFLOAT, m_vulkanDevice, m_graphicsQueue, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_LAYOUT_GENERAL);
+    m_textures.diffuseMap.CreateTargetTexture(m_width, m_height, VK_FORMAT_R32G32B32A32_SFLOAT , m_vulkanDevice, m_graphicsQueue, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_LAYOUT_GENERAL);
 
     SetupDescriptorPool();
 
@@ -166,7 +166,7 @@ void SlimeSimulation::SetupGraphicsDescriptorSetLayout()
 void SlimeSimulation::PrepareGraphicsPipelines()
 {
     // Slime Pipeline
-    PrepareSlimePipeline();
+    PrepareGraphicsSlimePipeline();
 }
 
 void SlimeSimulation::SetupDescriptorPool()
@@ -181,7 +181,7 @@ void SlimeSimulation::SetupDescriptorPool()
 
     VkDescriptorPoolSize descriptorPoolStorageImageSize{};
     descriptorPoolStorageImageSize.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-    descriptorPoolStorageImageSize.descriptorCount = 1;
+    descriptorPoolStorageImageSize.descriptorCount = 2;
 
     VkDescriptorPoolSize descriptorPoolImageSampler{};
     descriptorPoolImageSampler.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -320,7 +320,7 @@ void SlimeSimulation::UpdateUniformBuffers()
     memcpy(m_compute.uniformBuffer.mapped, &m_compute.ubo, sizeof(m_compute.ubo));
 }
 
-void SlimeSimulation::PrepareSlimePipeline()
+void SlimeSimulation::PrepareGraphicsSlimePipeline()
 {
     SetupGraphicsDescriptorSetLayout();
 
@@ -437,14 +437,98 @@ void SlimeSimulation::PrepareGraphics()
     }
 }
 
-void SlimeSimulation::PrepareCompute()
+void SlimeSimulation::PrepareComputeDiffusePipeline()
 {
-    // Create a compute capable device queue
-    // The VulkanDevice::createLogicalDevice functions finds a compute capable queue and prefers queue families that only support compute
-    // Depending on the implementation this may result in different queue family indices for graphics and computes,
-    // requiring proper synchronization (see the memory and pipeline barriers)
-    vkGetDeviceQueue(m_logicalDevice, m_compute.queueFamilyIndex, 0, &m_compute.queue);
+    VkDescriptorSetLayoutBinding slimeUBOBinding{};
+    slimeUBOBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    slimeUBOBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    slimeUBOBinding.binding = 0;
+    slimeUBOBinding.descriptorCount = 1;
 
+    VkDescriptorSetLayoutBinding trailImageBinding{};
+    trailImageBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    trailImageBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    trailImageBinding.binding = 1;
+    trailImageBinding.descriptorCount = 1;
+
+    VkDescriptorSetLayoutBinding diffuseImageBinding{};
+    diffuseImageBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    diffuseImageBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    diffuseImageBinding.binding = 2;
+    diffuseImageBinding.descriptorCount = 1;
+
+    std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
+        slimeUBOBinding,
+        trailImageBinding,
+        diffuseImageBinding,
+    };
+
+    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
+    descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descriptorSetLayoutCreateInfo.pBindings = setLayoutBindings.data();
+    descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(setLayoutBindings.size());
+    descriptorSetLayoutCreateInfo.pNext = nullptr;
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(m_logicalDevice, &descriptorSetLayoutCreateInfo, nullptr, &m_compute.diffuse.descriptorSetLayout));
+
+    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
+    pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutCreateInfo.setLayoutCount = 1;
+    pipelineLayoutCreateInfo.pNext = nullptr;
+    pipelineLayoutCreateInfo.pSetLayouts = &m_compute.diffuse.descriptorSetLayout;
+    VK_CHECK_RESULT(vkCreatePipelineLayout(m_logicalDevice, &pipelineLayoutCreateInfo, nullptr, &m_compute.diffuse.pipelineLayout));
+
+
+    // Write descriptor sets
+    VkDescriptorSetAllocateInfo descriptorSetAllocateInfo{};
+    descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    descriptorSetAllocateInfo.descriptorPool = m_descriptorPool;
+    descriptorSetAllocateInfo.pSetLayouts = &m_compute.diffuse.descriptorSetLayout;
+    descriptorSetAllocateInfo.descriptorSetCount = 1;
+
+    VK_CHECK_RESULT(vkAllocateDescriptorSets(m_logicalDevice, &descriptorSetAllocateInfo, &m_compute.diffuse.descriptorSet));
+
+    VkWriteDescriptorSet slimeUBODescriptorSet{};
+    slimeUBODescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    slimeUBODescriptorSet.dstSet = m_compute.diffuse.descriptorSet;
+    slimeUBODescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    slimeUBODescriptorSet.dstBinding = 0;
+    slimeUBODescriptorSet.pBufferInfo = &m_compute.uniformBuffer.descriptor;
+    slimeUBODescriptorSet.descriptorCount = 1;
+
+    VkWriteDescriptorSet trailImageDescriptorSet{};
+    trailImageDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    trailImageDescriptorSet.dstSet = m_compute.diffuse.descriptorSet;
+    trailImageDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    trailImageDescriptorSet.dstBinding = 1;
+    trailImageDescriptorSet.pImageInfo = &m_textures.renderMap.m_descriptor;
+    trailImageDescriptorSet.descriptorCount = 1;
+
+    VkWriteDescriptorSet trailDiffuseDescriptorSet{};
+    trailDiffuseDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    trailDiffuseDescriptorSet.dstSet = m_compute.diffuse.descriptorSet;
+    trailDiffuseDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    trailDiffuseDescriptorSet.dstBinding = 2;
+    trailDiffuseDescriptorSet.pImageInfo = &m_textures.diffuseMap.m_descriptor;
+    trailDiffuseDescriptorSet.descriptorCount = 1;
+
+    std::vector<VkWriteDescriptorSet> writeDescriptorSets
+    {
+        slimeUBODescriptorSet,
+        trailImageDescriptorSet,
+        trailDiffuseDescriptorSet
+    };
+    vkUpdateDescriptorSets(m_logicalDevice, (uint32_t)writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
+
+    VkComputePipelineCreateInfo computePipelineCreateInfo{};
+    computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    computePipelineCreateInfo.layout = m_compute.diffuse.pipelineLayout;
+    computePipelineCreateInfo.flags = 0;
+    computePipelineCreateInfo.stage = LoadShader(m_logicalDevice, "../../shaders/simulationDiffuse.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+    VK_CHECK_RESULT(vkCreateComputePipelines(m_logicalDevice, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &m_compute.diffuse.pipeline));
+}
+
+void SlimeSimulation::PrepareComputeSlimePipeline()
+{
     // Create compute pipeline
     // Compute pipelines are created separate from graphics pipelines even if they use the same queue (family index)
     VkDescriptorSetLayoutBinding slimeSSBOBinding{};
@@ -533,6 +617,18 @@ void SlimeSimulation::PrepareCompute()
     computePipelineCreateInfo.flags = 0;
     computePipelineCreateInfo.stage = LoadShader(m_logicalDevice, "../../shaders/simulation.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
     VK_CHECK_RESULT(vkCreateComputePipelines(m_logicalDevice, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &m_compute.slime.pipeline));
+}
+
+void SlimeSimulation::PrepareCompute()
+{
+    // Create a compute capable device queue
+    // The VulkanDevice::createLogicalDevice functions finds a compute capable queue and prefers queue families that only support compute
+    // Depending on the implementation this may result in different queue family indices for graphics and computes,
+    // requiring proper synchronization (see the memory and pipeline barriers)
+    vkGetDeviceQueue(m_logicalDevice, m_compute.queueFamilyIndex, 0, &m_compute.queue);
+
+    PrepareComputeSlimePipeline();
+    PrepareComputeDiffusePipeline();
 
     VkCommandPoolCreateInfo computeCommandPoolCreateInfo{};
     computeCommandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -628,20 +724,8 @@ void SlimeSimulation::BuildCommandBuffers()
     }
 }
 
-void SlimeSimulation::BuildComputeCommandBuffer()
+void SlimeSimulation::CopyDiffuseToRenderTexture(VkCommandBuffer cmdBuffer)
 {
-    VkCommandBufferBeginInfo cmdBufInfo{};
-    cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-    VK_CHECK_RESULT(vkBeginCommandBuffer(m_compute.commandBuffer, &cmdBufInfo));
-
-    // Dispatch the compute job
-    vkCmdBindPipeline(m_compute.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_compute.slime.pipeline);
-    vkCmdBindDescriptorSets(m_compute.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_compute.slime.pipelineLayout, 0, 1, &m_compute.slime.descriptorSet, 0, 0);
-    vkCmdDispatch(m_compute.commandBuffer, AGENT_COUNT, 1, 1);
-    vkCmdDispatch(m_compute.commandBuffer, AGENT_COUNT, 1, 1);
-
-
     // Copy region for transfer from framebuffer to cube face
     VkImageCopy copyRegion = {};
 
@@ -661,7 +745,71 @@ void SlimeSimulation::BuildComputeCommandBuffer()
     copyRegion.extent.height = m_textures.diffuseMap.m_height;
     copyRegion.extent.depth = 1;
 
-    vkCmdCopyImage(m_compute.commandBuffer, m_textures.diffuseMap.m_image, VK_IMAGE_LAYOUT_GENERAL, m_textures.renderMap.m_image, VK_IMAGE_LAYOUT_GENERAL, );
+    vkCmdCopyImage(cmdBuffer,
+        m_textures.diffuseMap.m_image, m_textures.diffuseMap.m_imageLayout,
+        m_textures.renderMap.m_image, m_textures.renderMap.m_imageLayout, 1, &copyRegion);
+}
+
+void SlimeSimulation::BuildComputeCommandBuffer()
+{
+    VkCommandBufferBeginInfo cmdBufInfo{};
+    cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+    VK_CHECK_RESULT(vkBeginCommandBuffer(m_compute.commandBuffer, &cmdBufInfo));
+
+    // Dispatch the compute job
+    vkCmdBindPipeline(m_compute.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_compute.slime.pipeline);
+    vkCmdBindDescriptorSets(m_compute.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_compute.slime.pipelineLayout, 0, 1, &m_compute.slime.descriptorSet, 0, 0);
+    vkCmdDispatch(m_compute.commandBuffer, AGENT_COUNT / 1024, 1, 1);
+
+    VkImageMemoryBarrier imageMemoryBarrier = {};
+    imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    // We won't be changing the layout of the image
+    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    imageMemoryBarrier.image = m_textures.renderMap.m_image;
+    imageMemoryBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+    imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+
+    vkCmdPipelineBarrier(
+        m_compute.commandBuffer,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &imageMemoryBarrier);
+
+    // Diffuse pipeline
+    vkCmdBindPipeline(m_compute.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_compute.diffuse.pipeline);
+    vkCmdBindDescriptorSets(m_compute.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_compute.diffuse.pipelineLayout, 0, 1, &m_compute.diffuse.descriptorSet, 0, 0);
+    vkCmdDispatch(m_compute.commandBuffer, m_textures.diffuseMap.m_width / 16, m_textures.diffuseMap.m_height / 16, 1);
+
+    imageMemoryBarrier = {};
+    imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    // We won't be changing the layout of the image
+    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    imageMemoryBarrier.image = m_textures.diffuseMap.m_image;
+    imageMemoryBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+    imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    imageMemoryBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT ;
+    imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+
+    vkCmdPipelineBarrier(
+        m_compute.commandBuffer,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &imageMemoryBarrier);
+    CopyDiffuseToRenderTexture(m_compute.commandBuffer);
+
     vkEndCommandBuffer(m_compute.commandBuffer);
 }
 

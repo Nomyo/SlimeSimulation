@@ -1,6 +1,6 @@
 #version 450
 
-layout(binding = 1) uniform UBO
+layout(binding = 0) uniform UBO
 {
     float elapsedTime;
     float time;
@@ -8,8 +8,8 @@ layout(binding = 1) uniform UBO
     uint spaceHeight;
     uint agentCount;
 } ubo;
-layout (binding = 0, rgba8) uniform readonly image2D inputImage;
-layout (binding = 1, rgba8) uniform image2D resultImage;
+layout (binding = 1, rgba8) uniform readonly image2D inputImage;
+layout (binding = 2, rgba8) uniform image2D resultImage;
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 void main()
@@ -20,8 +20,8 @@ void main()
         return;
     }
 
-    float decaySpeed = 0.01;
-    vec3 originalCol = imageLoad(inputImage, ivec2(texCoord)).rgb;
-    originalCol = max(vec3(0.), originalCol - decaySpeed);
-    imageStore(resultImage, ivec2(texCoord), vec4(originalCol, 1.0));
+    float decaySpeed = 4.;
+    vec3 col = imageLoad(inputImage, ivec2(texCoord)).rgb;
+    col = max(vec3(0.), col - col * decaySpeed * ubo.elapsedTime);
+    imageStore(resultImage, ivec2(texCoord), vec4(col, 1.0));
 }

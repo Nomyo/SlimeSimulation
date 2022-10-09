@@ -5,7 +5,7 @@
 #include <glm/glm.hpp>
 
 #define ENABLE_VALIDATION true
-#define AGENT_COUNT 10
+#define AGENT_COUNT 1024
 
 struct SlimeAgent {
     glm::vec2 position;
@@ -48,6 +48,8 @@ public:
 
         // Slime pipeline
         pipelineWrapper slime;
+        // Diffuse
+        pipelineWrapper diffuse;
 
         // Store the slime agent informations
         BufferWrapper storageBuffer;
@@ -84,7 +86,10 @@ private:
     void PrepareCompute();
 
     void PrepareGraphicsPipelines();
-    void PrepareSlimePipeline();
+    void PrepareGraphicsSlimePipeline();
+
+    void PrepareComputeSlimePipeline();
+    void PrepareComputeDiffusePipeline();
 
     void PrepareStorageBuffers();
     void PrepareUniformBuffers();
@@ -102,6 +107,8 @@ private:
     virtual void OnUpdateUIOverlay(VulkanIamGuiWrapper* ui);
     virtual void OnViewChanged();
 
+    void CopyDiffuseToRenderTexture(VkCommandBuffer cmdBuffer);
+
+
     std::vector<VkFence> m_queueCompleteFences;
 };
-
