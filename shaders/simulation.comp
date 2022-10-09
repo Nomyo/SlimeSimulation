@@ -3,7 +3,7 @@
 struct SlimeAgent
 {
     vec2 pos;
-    vec2 direction;
+    float angle;
 };
 
 layout(std140, binding = 0) buffer agentBlock
@@ -49,7 +49,7 @@ void main()
     float speedFactor = 200.0;
 
     vec2 cPos = agents[index].pos;
-    vec2 cDir = agents[index].direction;
+    vec2 cDir = vec2(cos(agents[index].angle), sin(agents[index].angle));
 
     vec2 nPos = agents[index].pos + cDir * ubo.elapsedTime * speedFactor;
 
@@ -59,7 +59,7 @@ void main()
 
         // give a new direction
         uint random = hash(ubo.spaceWidth * uint(cPos.y) + uint(nPos.x) + hash(index + uint(ubo.time) * 1994));
-        agents[index].direction = vec2(cos(scaleToRange01(random) * 2 * PI), sin(scaleToRange01(random) * 2 * PI));
+        agents[index].angle = scaleToRange01(random) * 2 * PI;
     }
     agents[index].pos = nPos;
 

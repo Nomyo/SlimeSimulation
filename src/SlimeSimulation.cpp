@@ -239,13 +239,13 @@ void SlimeSimulation::PrepareStorageBuffers()
     std::uniform_real_distribution<float> rndDistWidth(0, (float)m_textures.renderMap.m_width);
     std::uniform_real_distribution<float> rndDistHeight(0, (float)m_textures.renderMap.m_height);
 
-    std::uniform_real_distribution<float> rndDistNorm(-1.f, 1.f);
+    std::uniform_real_distribution<float> rndAngle(0, 360);
 
     // Initial agents positions
     std::vector<SlimeAgent> agentBuffer(AGENT_COUNT);
     for (auto& agent : agentBuffer) {
         agent.position = glm::vec2(rndDistWidth(rndEngine), rndDistHeight(rndEngine));
-        agent.direction = normalize(glm::vec2(rndDistNorm(rndEngine), rndDistNorm(rndEngine)));
+        agent.angle = rndAngle(rndEngine);
     }
 
     VkDeviceSize storageBufferSize = agentBuffer.size() * sizeof(SlimeAgent);
@@ -763,7 +763,7 @@ void SlimeSimulation::BuildComputeCommandBuffer()
     // Dispatch the compute job
     vkCmdBindPipeline(m_compute.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_compute.slime.pipeline);
     vkCmdBindDescriptorSets(m_compute.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_compute.slime.pipelineLayout, 0, 1, &m_compute.slime.descriptorSet, 0, 0);
-    vkCmdDispatch(m_compute.commandBuffer, AGENT_COUNT / 1024, 1, 1);
+    vkCmdDispatch(m_compute.commandBuffer, AGENT_COUNT, 1, 1);
 
     VkImageMemoryBarrier imageMemoryBarrier = {};
     imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
