@@ -53,4 +53,7 @@ struct VulkanIamGuiWrapper
     void Draw(VkCommandBuffer commandBuffer);
 
     bool CheckBox(const std::string& caption, bool* value);
+    bool SliderFloat(const char* caption, float* value, float min, float max);
+    bool SliderInt(const char* caption, int32_t* value, int32_t min, int32_t max);
+    bool Header(const char *caption);
 };

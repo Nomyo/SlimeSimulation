@@ -7,11 +7,21 @@ layout(binding = 0) uniform UBO
     uint spaceWidth;
     uint spaceHeight;
     uint agentCount;
+
+    // UI Component
+    float sensorDist;
+    int sensorSize;
+    float angleDegreeSensor;
+    float agentAngularSpeed;
+    float agentSpeed;
+    float diffuseRate;
+    float decayRate;
 } ubo;
+
 layout (binding = 1, rgba8) uniform readonly image2D inputImage;
 layout (binding = 2, rgba8) uniform image2D resultImage;
 
-layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
 void main()
 {
     // 1D workload
@@ -20,8 +30,8 @@ void main()
         return;
     }
 
-    float diffuseRate = 200.0;
-    float decaySpeed = 1;
+    const float diffuseRate = ubo.diffuseRate;
+    const float decaySpeed = ubo.decayRate;
 
     vec3 col = imageLoad(inputImage, ivec2(texCoord)).rgb;
 

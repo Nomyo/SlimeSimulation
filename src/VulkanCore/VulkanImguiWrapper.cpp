@@ -485,3 +485,24 @@ bool VulkanIamGuiWrapper::CheckBox(const std::string& caption, bool* value)
 
     return res;
 }
+
+bool VulkanIamGuiWrapper::SliderFloat(const char* caption, float* value, float min, float max)
+{
+    bool res = ImGui::SliderFloat(caption, value, min, max);
+    if (res) {
+        updated = true;
+    };
+    return res;
+}
+
+bool VulkanIamGuiWrapper::SliderInt(const char* caption, int32_t* value, int32_t min, int32_t max)
+{
+    bool res = ImGui::SliderInt(caption, value, min, max);
+    if (res) { updated = true; };
+    return res;
+}
+
+bool VulkanIamGuiWrapper::Header(const char *caption)
+{
+    return ImGui::CollapsingHeader(caption, ImGuiTreeNodeFlags_DefaultOpen);
+}

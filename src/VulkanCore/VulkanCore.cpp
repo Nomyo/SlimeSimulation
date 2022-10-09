@@ -310,7 +310,7 @@ void VulkanCore::SetupWindow()
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-    m_pWindow = glfwCreateWindow(m_width, m_height, "Basic Newton Physics particles", nullptr, nullptr);
+    m_pWindow = glfwCreateWindow(m_width, m_height, "Physarum transport networks", nullptr, nullptr);
     glfwSetWindowUserPointer(m_pWindow, this);
 
     glfwSetMouseButtonCallback(m_pWindow, mouseButtonCallback);
@@ -619,12 +619,10 @@ void VulkanCore::UpdateUI()
 
     ImGui::SetNextWindowPos(ImVec2(0, 0));
     ImGui::SetNextWindowSize(ImVec2(300, 300), ImGuiCond_FirstUseEver);
-    ImGui::Begin("Particles", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove);
+    ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove);
 
     ImGui::TextUnformatted(m_deviceProperties.deviceName);
     ImGui::Text("%.2f ms/frame (%.1d fps)", (1000.0f / m_lastFPS), m_lastFPS);
-    ImGui::Text("mouseposX %f - mousepoxY %f fps", m_mousePosX, m_mousePosY);
-
 
     OnUpdateUIOverlay(&m_ui);
 

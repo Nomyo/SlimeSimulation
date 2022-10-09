@@ -4,6 +4,7 @@ struct SlimeAgent
 {
     vec2 pos;
     float angle;
+    float padding;
 };
 
 layout(std140, binding = 0) buffer agentBlock
@@ -18,6 +19,15 @@ layout(binding = 1) uniform UBO
     uint spaceWidth;
     uint spaceHeight;
     uint agentCount;
+
+    // UI Component
+    float sensorDist;
+    int sensorSize;
+    float angleDegreeSensor;
+    float agentAngularSpeed;
+    float agentSpeed;
+    float diffuseRate;
+    float decayRate;
 } ubo;
 
 layout (binding = 2, rgba8) uniform image2D image;
@@ -37,7 +47,35 @@ float scaleToRange01(uint state)
 }
 #define PI 3.1415926538
 
-layout(local_size_x = 1024, local_size_y = 1, local_size_z = 1) in;
+float sense(SlimeAgent agent, float sensorAngleOffset)
+{
+    // To configure from UI
+    const int sensorDist = int(ubo.sensorDist);
+    const int sensorSize = ubo.sensorSize;
+
+    float chemoAttractant = 0.0;
+    vec2 sensorPos = agent.pos + vec2(cos(agent.angle + sensorAngleOffset), sin(agent.angle + sensorAngleOffset)) * sensorDist;
+
+    for (int offsetX = -sensorSize; offsetX <= sensorSize; ++offsetX)
+    {
+        for (int offsetY = -sensorSize; offsetY <= sensorSize; ++offsetY)
+        {
+            int samplingCoordX = min(int(ubo.spaceWidth) - 1, max(0, int(sensorPos.x) + offsetX));
+            int samplingCoordY = min(int(ubo.spaceHeight) - 1, max(0, int(sensorPos.y) + offsetY));
+            chemoAttractant += imageLoad(image, ivec2(samplingCoordX, samplingCoordY)).b;
+            /*if (sensorAngleOffset >0) {
+                imageStore(image, ivec2(samplingCoordX, samplingCoordY), vec4(1.0, 0., 0., 1.));
+            }
+            else {
+                imageStore(image, ivec2(samplingCoordX, samplingCoordY), vec4(0.0, 1.0, 0.0, 1.0));
+            }*/
+        }
+    }
+
+    return chemoAttractant;
+}
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 void main()
 {
     // 1D workload
@@ -45,23 +83,53 @@ void main()
     if (index >= ubo.agentCount) {
         return;
     }
-
-    float speedFactor = 200.0;
-
+    const float speedFactor = ubo.agentSpeed;
     vec2 cPos = agents[index].pos;
-    vec2 cDir = vec2(cos(agents[index].angle), sin(agents[index].angle));
+    uint random = hash(ubo.spaceWidth * uint(cPos.y) + uint(cPos.x) + hash(index + uint(ubo.time) * 1994));
 
-    vec2 nPos = agents[index].pos + cDir * ubo.elapsedTime * speedFactor;
+    // To configure
+    const float angleRadSensor = ubo.angleDegreeSensor * (PI / 180);
+    const float angularSpeed = ubo.agentAngularSpeed;
+
+    // Sense forward chemo attractant to decide where to go
+    float concentrationForward = sense(agents[index], 0);
+    float concentrationLeft = sense(agents[index], -angleRadSensor);
+    float concentrationRight = sense(agents[index], angleRadSensor);
+
+    float normalizedSteerStrenght = scaleToRange01(random);
+
+    if (concentrationForward > concentrationLeft && concentrationForward > concentrationRight) {
+        // continue Forward
+        agents[index].angle += 0;
+    }
+    else if (concentrationLeft > concentrationForward && concentrationRight > concentrationForward)
+    {
+        // continue Randomly
+        float steer = (normalizedSteerStrenght - 0.5) * 2;
+        agents[index].angle += steer * angularSpeed * ubo.elapsedTime;
+    }
+    else if (concentrationRight > concentrationLeft)
+    {
+        // continue Right
+        agents[index].angle += normalizedSteerStrenght * angularSpeed * ubo.elapsedTime;
+    }
+    else if (concentrationLeft > concentrationRight)
+    {
+        // continue Left
+        agents[index].angle -= normalizedSteerStrenght * angularSpeed * ubo.elapsedTime;
+    }
+
+    vec2 nDir = vec2(cos(agents[index].angle), sin(agents[index].angle));
+    vec2 nPos = agents[index].pos + nDir * ubo.elapsedTime * speedFactor;
 
     if (nPos.x < 0 || nPos.x >= ubo.spaceWidth || nPos.y < 0 || nPos.y >= ubo.spaceHeight) {
         nPos.x = min(ubo.spaceWidth - 1, max(0, nPos.x));
         nPos.y = min(ubo.spaceHeight - 1, max(0, nPos.y));
 
         // give a new direction
-        uint random = hash(ubo.spaceWidth * uint(cPos.y) + uint(nPos.x) + hash(index + uint(ubo.time) * 1994));
-        agents[index].angle = scaleToRange01(random) * 2 * PI;
+        agents[index].angle = scaleToRange01(hash(random)) * 2 * PI;
     }
     agents[index].pos = nPos;
 
-    imageStore(image, ivec2(agents[index].pos), vec4(1.0));
+    imageStore(image, ivec2(agents[index].pos), vec4(.90));
 }

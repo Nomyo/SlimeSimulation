@@ -5,11 +5,12 @@
 #include <glm/glm.hpp>
 
 #define ENABLE_VALIDATION true
-#define AGENT_COUNT 1024
+#define AGENT_COUNT 1024 * 100
 
 struct SlimeAgent {
     glm::vec2 position;
     float angle;
+    float padding;
 };
 
 struct BufferWrapper {
@@ -66,6 +67,15 @@ public:
             uint32_t spaceWidth;
             uint32_t spaceHeight;
             uint32_t agentCount;
+
+            // UI Component
+            float sensorDist;
+            int sensorSize;
+            float angleDegreeSensor;
+            float agentAngularSpeed;
+            float agentSpeed;
+            float diffuseRate;
+            float decayRate;
         } ubo;
     } m_compute;
 
@@ -109,6 +119,14 @@ private:
 
     void CopyDiffuseToRenderTexture(VkCommandBuffer cmdBuffer);
 
+    // UI component
+    float m_sensorDist;
+    int m_sensorSize;
+    float m_angleDegreeSensor;
+    float m_agentAngularSpeed;
+    float m_agentSpeed;
+    float m_diffuseRate;
+    float m_decayRate;
 
     std::vector<VkFence> m_queueCompleteFences;
 };

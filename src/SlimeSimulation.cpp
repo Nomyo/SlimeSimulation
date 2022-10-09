@@ -15,6 +15,14 @@
 
 SlimeSimulation::SlimeSimulation() : VulkanCore(ENABLE_VALIDATION)
 {
+    // default settings
+    m_sensorDist = 3;
+    m_sensorSize = 3;
+    m_angleDegreeSensor = 35.f;
+    m_agentAngularSpeed = 45.f;
+    m_agentSpeed = 50.f;
+    m_diffuseRate = 1.0f;
+    m_decayRate = 1.0f;
 }
 
 SlimeSimulation::~SlimeSimulation()
@@ -245,7 +253,7 @@ void SlimeSimulation::PrepareStorageBuffers()
     std::vector<SlimeAgent> agentBuffer(AGENT_COUNT);
     for (auto& agent : agentBuffer) {
         agent.position = glm::vec2(rndDistWidth(rndEngine), rndDistHeight(rndEngine));
-        agent.angle = rndAngle(rndEngine);
+        agent.angle = rndAngle(rndEngine) * (3.1415926538f / 180.f);
     }
 
     VkDeviceSize storageBufferSize = agentBuffer.size() * sizeof(SlimeAgent);
@@ -320,6 +328,16 @@ void SlimeSimulation::UpdateUniformBuffers()
     time += m_frameTimer;
     m_compute.ubo.elapsedTime = m_frameTimer;
     m_compute.ubo.time = time;
+
+    // UI
+    m_compute.ubo.sensorDist = m_sensorDist;
+    m_compute.ubo.sensorSize = m_sensorSize;
+    m_compute.ubo.angleDegreeSensor = m_angleDegreeSensor;
+    m_compute.ubo.agentAngularSpeed = m_agentAngularSpeed;
+    m_compute.ubo.agentSpeed = m_agentSpeed;
+    m_compute.ubo.diffuseRate = m_diffuseRate;
+    m_compute.ubo.decayRate = m_decayRate;
+
     memcpy(m_compute.uniformBuffer.mapped, &m_compute.ubo, sizeof(m_compute.ubo));
 }
 
@@ -818,7 +836,18 @@ void SlimeSimulation::BuildComputeCommandBuffer()
 
 void SlimeSimulation::OnUpdateUIOverlay(VulkanIamGuiWrapper *uiWrapper)
 {
-    //uiWrapper->CheckBox("Attach attractor to cursor", &m_attractorMouse);
+    uiWrapper->SliderFloat("Speed", &m_agentSpeed, 0.1f, 1000.f);
+    uiWrapper->SliderFloat("Angular speed", &m_agentAngularSpeed, 0.1f, 1000.f);
+    uiWrapper->SliderFloat("Diffuse rate", &m_diffuseRate, 0.1f, 20.f);
+    uiWrapper->SliderFloat("Decay rate", &m_decayRate, 0.001f, 1.f);
+
+    // Sensor Config
+    if (uiWrapper->Header("Sensor"))
+    {
+        uiWrapper->SliderFloat("Angle offset", &m_angleDegreeSensor, 0.0f, 360.f);
+        uiWrapper->SliderFloat("Distance", &m_sensorDist, 1.0f, 5.f);
+        uiWrapper->SliderInt("Size", &m_sensorSize, 1, 10);
+    }
 }
 
 void SlimeSimulation::OnViewChanged()
