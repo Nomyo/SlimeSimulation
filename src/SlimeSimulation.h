@@ -5,11 +5,13 @@
 #include <glm/glm.hpp>
 
 #define ENABLE_VALIDATION true
-#define AGENT_COUNT 1024 * 100
+#define AGENT_COUNT 1024 * 1024
 
 struct SlimeAgent {
     glm::vec2 position;
     float angle;
+    float infectionRate;
+    int infected;
     float padding;
 };
 

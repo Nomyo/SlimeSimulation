@@ -4,10 +4,12 @@ struct SlimeAgent
 {
     vec2 pos;
     float angle;
+    float infectionRate;
+    int infected;
     float padding;
 };
 
-layout(std140, binding = 0) buffer agentBlock
+layout(binding = 0) buffer agentBlock
 {
     SlimeAgent agents[ ];
 };
@@ -56,21 +58,15 @@ float sense(SlimeAgent agent, float sensorAngleOffset)
     float chemoAttractant = 0.0;
     vec2 sensorPos = agent.pos + vec2(cos(agent.angle + sensorAngleOffset), sin(agent.angle + sensorAngleOffset)) * sensorDist;
 
-    for (int offsetX = -sensorSize; offsetX <= sensorSize; ++offsetX)
+    /*for (int offsetX = -sensorSize; offsetX <= sensorSize; ++offsetX)
     {
         for (int offsetY = -sensorSize; offsetY <= sensorSize; ++offsetY)
         {
             int samplingCoordX = min(int(ubo.spaceWidth) - 1, max(0, int(sensorPos.x) + offsetX));
             int samplingCoordY = min(int(ubo.spaceHeight) - 1, max(0, int(sensorPos.y) + offsetY));
-            chemoAttractant += imageLoad(image, ivec2(samplingCoordX, samplingCoordY)).b;
-            /*if (sensorAngleOffset >0) {
-                imageStore(image, ivec2(samplingCoordX, samplingCoordY), vec4(1.0, 0., 0., 1.));
-            }
-            else {
-                imageStore(image, ivec2(samplingCoordX, samplingCoordY), vec4(0.0, 1.0, 0.0, 1.0));
-            }*/
+            chemoAttractant += imageLoad(image, ivec2(samplingCoordX, samplingCoordY)).r;
         }
-    }
+    }*/
 
     return chemoAttractant;
 }
@@ -83,13 +79,13 @@ void main()
     if (index >= ubo.agentCount) {
         return;
     }
-    const float speedFactor = ubo.agentSpeed;
+    const float speedFactor = ubo.agentSpeed - ubo.agentSpeed * 0.50 * agents[index].infected;
     vec2 cPos = agents[index].pos;
     uint random = hash(ubo.spaceWidth * uint(cPos.y) + uint(cPos.x) + hash(index + uint(ubo.time) * 1994));
 
     // To configure
     const float angleRadSensor = ubo.angleDegreeSensor * (PI / 180);
-    const float angularSpeed = ubo.agentAngularSpeed;
+    const float angularSpeed = ubo.agentAngularSpeed * 2 * PI;
 
     // Sense forward chemo attractant to decide where to go
     float concentrationForward = sense(agents[index], 0);
@@ -131,5 +127,19 @@ void main()
     }
     agents[index].pos = nPos;
 
-    imageStore(image, ivec2(agents[index].pos), vec4(.90));
+    float infectedColorFactor = 1.0;
+    // infected
+    if (agents[index].infected == 1) {
+        agents[index].infectionRate += ubo.elapsedTime;
+        infectedColorFactor /= 5 * agents[index].infectionRate;
+    }
+
+    vec4 agentColor = vec4(0.9 * infectedColorFactor, 0.9, 0.9 * infectedColorFactor, 1.0);
+
+    vec4 oldTrail = imageLoad(image, ivec2(agents[index].pos));
+    if (oldTrail.r < 0.05 && oldTrail.g > 0.8) {
+        agents[index].infected = 1;
+    }
+
+    imageStore(image, ivec2(agents[index].pos), agentColor);
 }

@@ -16,13 +16,13 @@
 SlimeSimulation::SlimeSimulation() : VulkanCore(ENABLE_VALIDATION)
 {
     // default settings
-    m_sensorDist = 3;
+    m_sensorDist = 10;
     m_sensorSize = 3;
     m_angleDegreeSensor = 35.f;
-    m_agentAngularSpeed = 45.f;
-    m_agentSpeed = 50.f;
-    m_diffuseRate = 1.0f;
-    m_decayRate = 1.0f;
+    m_agentAngularSpeed = 50.0f;
+    m_agentSpeed = 350.f;
+    m_diffuseRate = 20.0f;
+    m_decayRate = 5.f;
 }
 
 SlimeSimulation::~SlimeSimulation()
@@ -247,13 +247,29 @@ void SlimeSimulation::PrepareStorageBuffers()
     std::uniform_real_distribution<float> rndDistWidth(0, (float)m_textures.renderMap.m_width);
     std::uniform_real_distribution<float> rndDistHeight(0, (float)m_textures.renderMap.m_height);
 
+    // center circle distribution
+    std::uniform_real_distribution<float> rndUniform(0, 1);
+    float centerPositionX = (float)m_textures.renderMap.m_width / 2;
+    float centerPositionY = (float)m_textures.renderMap.m_height / 2;
+    float radius = 400.f;
     std::uniform_real_distribution<float> rndAngle(0, 360);
 
     // Initial agents positions
     std::vector<SlimeAgent> agentBuffer(AGENT_COUNT);
+    bool firstAgent = true;
     for (auto& agent : agentBuffer) {
-        agent.position = glm::vec2(rndDistWidth(rndEngine), rndDistHeight(rndEngine));
-        agent.angle = rndAngle(rndEngine) * (3.1415926538f / 180.f);
+        float r = radius * sqrt(rndUniform(rndEngine));
+        float theta = rndUniform(rndEngine) * 2 * 3.1415926538f;
+        
+        agent.position = glm::vec2(centerPositionX + r * cos(theta), centerPositionY + r * sin(theta));
+        glm::vec2 centerDir = normalize(glm::vec2(centerPositionX, centerPositionY) - agent.position);
+        agent.angle = atan2(centerDir.y, centerDir.x);
+        agent.infectionRate = 0;
+
+        if (firstAgent) {
+           agent.infected = 1;
+           firstAgent = false;
+        }
     }
 
     VkDeviceSize storageBufferSize = agentBuffer.size() * sizeof(SlimeAgent);
@@ -838,14 +854,14 @@ void SlimeSimulation::OnUpdateUIOverlay(VulkanIamGuiWrapper *uiWrapper)
 {
     uiWrapper->SliderFloat("Speed", &m_agentSpeed, 0.1f, 1000.f);
     uiWrapper->SliderFloat("Angular speed", &m_agentAngularSpeed, 0.1f, 1000.f);
-    uiWrapper->SliderFloat("Diffuse rate", &m_diffuseRate, 0.1f, 20.f);
-    uiWrapper->SliderFloat("Decay rate", &m_decayRate, 0.001f, 1.f);
+    uiWrapper->SliderFloat("Diffuse rate", &m_diffuseRate, 0.1f, 80.f);
+    uiWrapper->SliderFloat("Decay rate", &m_decayRate, 0.001f, 10.f);
 
     // Sensor Config
     if (uiWrapper->Header("Sensor"))
     {
         uiWrapper->SliderFloat("Angle offset", &m_angleDegreeSensor, 0.0f, 360.f);
-        uiWrapper->SliderFloat("Distance", &m_sensorDist, 1.0f, 5.f);
+        uiWrapper->SliderFloat("Distance", &m_sensorDist, 1.0f, 10.f);
         uiWrapper->SliderInt("Size", &m_sensorSize, 1, 10);
     }
 }
