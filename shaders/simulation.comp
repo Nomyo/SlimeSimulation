@@ -58,7 +58,7 @@ float sense(SlimeAgent agent, float sensorAngleOffset)
     float chemoAttractant = 0.0;
     vec2 sensorPos = agent.pos + vec2(cos(agent.angle + sensorAngleOffset), sin(agent.angle + sensorAngleOffset)) * sensorDist;
 
-    /*for (int offsetX = -sensorSize; offsetX <= sensorSize; ++offsetX)
+    for (int offsetX = -sensorSize; offsetX <= sensorSize; ++offsetX)
     {
         for (int offsetY = -sensorSize; offsetY <= sensorSize; ++offsetY)
         {
@@ -66,7 +66,7 @@ float sense(SlimeAgent agent, float sensorAngleOffset)
             int samplingCoordY = min(int(ubo.spaceHeight) - 1, max(0, int(sensorPos.y) + offsetY));
             chemoAttractant += imageLoad(image, ivec2(samplingCoordX, samplingCoordY)).r;
         }
-    }*/
+    }
 
     return chemoAttractant;
 }

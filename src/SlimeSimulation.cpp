@@ -17,12 +17,12 @@ SlimeSimulation::SlimeSimulation() : VulkanCore(ENABLE_VALIDATION)
 {
     // default settings
     m_sensorDist = 10;
-    m_sensorSize = 3;
+    m_sensorSize = 1;
     m_angleDegreeSensor = 35.f;
-    m_agentAngularSpeed = 50.0f;
-    m_agentSpeed = 350.f;
-    m_diffuseRate = 20.0f;
-    m_decayRate = 5.f;
+    m_agentAngularSpeed = 90.0f;
+    m_agentSpeed = 400.f;
+    m_diffuseRate = 5.0f;
+    m_decayRate = .5f;
 }
 
 SlimeSimulation::~SlimeSimulation()
